@@ -49,7 +49,8 @@ static XWFloatingShakeManager *p_floatingShakeManager;
 #pragma mark - system
 - (instancetype)init {
     if (self = [super init]) {
-        if (@available(iOS 10.0, *)) { /// ios10 以上才可震动
+        if (@available(iOS 10.0, *)) {
+            /// ios10 以上才可震动
             _generator = [[UIImpactFeedbackGenerator alloc] initWithStyle: UIImpactFeedbackStyleLight];
         }
     }
@@ -169,7 +170,8 @@ static XWFloatingShakeManager *p_floatingShakeManager;
         [containerView addSubview:toView];
         UIView *fromView = [transitionContext viewForKey:UITransitionContextFromViewKey];
         [containerView bringSubviewToFront:fromView];
-        if (_isInteractive) {   /// 可交互式动画
+        if (_isInteractive) {
+            /// 可交互式动画
             [UIView animateWithDuration:0.3f animations:^{
                 fromView.frame = CGRectOffset(fromView.frame, [UIScreen mainScreen].bounds.size.width, 0.f);
             } completion:^(BOOL finished) {
@@ -179,7 +181,8 @@ static XWFloatingShakeManager *p_floatingShakeManager;
                 }
             }];
             
-        } else {                 /// 非可交互式动画
+        } else {
+            /// 非可交互式动画
             XWFloatingAnimationView *theView = [[XWFloatingAnimationView alloc] initWithFrame:fromView.bounds];
             UIGraphicsBeginImageContext(fromView.bounds.size);
             [fromView.layer renderInContext:UIGraphicsGetCurrentContext()];
@@ -233,7 +236,6 @@ static XWFloatingShakeManager *p_floatingShakeManager;
             CGPoint transitionPoint = [gesture translationInView:presentedViewController.view];
             CGFloat ratio = transitionPoint.x/[UIScreen mainScreen].bounds.size.width;
             transitionX = transitionPoint.x;
-            ///获得floatingBtn，改变它的alpha值
             xw_floatingWindowView.alpha = ratio;
             if (ratio >= 0.5) {
                 shouldComplete = YES;
@@ -260,7 +262,6 @@ static XWFloatingShakeManager *p_floatingShakeManager;
                 [fromView.superview addSubview:theView];
                 [theView startAnimatingWithView:theView fromRect:CGRectMake(transitionX, 0.f, fromRect.size.width, fromRect.size.height) toRect:CGRectMake(_curPoint.x, _curPoint.y, 60.f, 60.f)];
                 [self finishInteractiveTransition];
-                //这个需要设置，而且只能在这里设置，不能在外面设置
                 nav.delegate = nil;
             } else {
                 xw_floatingWindowView.alpha = 0.f;
