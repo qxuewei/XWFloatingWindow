@@ -28,56 +28,32 @@ static const CGFloat cFloatingWindowTopBottomMargin = 64.0;
 //浮窗上下两边最小间距 iPhoneX
 static const CGFloat cFloatingWindowTopBottomMarginIphoneX = 86.0;
 
-#pragma mark - **************************************** 振动器 ******************************************************
-/// 转场扩散动画视图
-@interface XWFloatingShakeManager : NSObject
-+ (instancetype)share;
+#pragma mark - *** 红色隐藏视图 ****
+/// 视图右下红色隐藏视图,浮窗拖入消失
+@interface XWFloatingWindowContentView : UIView
+/**
+ 扩散效果
+ */
+- (void)spreadAnimation;
+/**
+ 取消扩散效果
+ */
+- (void)cancelSpreadAnimation;
 @end
-@implementation XWFloatingShakeManager {
-    API_AVAILABLE(ios(10.0))
-    UIImpactFeedbackGenerator *_generator;
-}
-/// 单例对象
-static XWFloatingShakeManager *p_floatingShakeManager;
-#pragma mark - public
-- (void)shake {
-    if (@available(iOS 10.0, *)) {
-        [_generator prepare];
-        [_generator impactOccurred];
-    }
-}
-#pragma mark - system
-- (instancetype)init {
-    if (self = [super init]) {
-        if (@available(iOS 10.0, *)) {
-            /// ios10 以上才可震动
-            _generator = [[UIImpactFeedbackGenerator alloc] initWithStyle: UIImpactFeedbackStyleLight];
-        }
-    }
-    return self;
-}
-#pragma mark - 单例对象
-+ (instancetype)share {
-    if (!p_floatingShakeManager) {
-        p_floatingShakeManager = [[self alloc] init];
-    }
-    return p_floatingShakeManager;
-}
-+ (instancetype)allocWithZone:(struct _NSZone *)zone {
-    if (!p_floatingShakeManager) {
-        static dispatch_once_t onceToken;
-        dispatch_once(&onceToken, ^{
-            p_floatingShakeManager = [super allocWithZone:zone];
-        });
-    }
-    return p_floatingShakeManager;
-}
-- (id)copyWithZone:(NSZone *)zone{
-    return p_floatingShakeManager;
-}
-- (id)mutableCopyWithZone:(NSZone *)zone{
-    return p_floatingShakeManager;
-}
+
+#pragma mark - *** 震动器 ****
+@interface XWFloatingShakeManager : NSObject
+/**
+ 震动器单例
+
+ @return 震动器
+ */
++ (instancetype)share;
+
+/**
+ 震动方法
+ */
+- (void)shake;
 @end
 
 #pragma mark - **************************************** 转场动画视图 ******************************************************
@@ -144,6 +120,7 @@ static XWFloatingShakeManager *p_floatingShakeManager;
 @end
 
 @implementation XWFloatingAnimator
+
 #pragma mark  UIViewControllerAnimatedTransitioning
 - (void)animateTransition:(nonnull id<UIViewControllerContextTransitioning>)transitionContext {
     UIView *containerView = transitionContext.containerView;
@@ -217,9 +194,14 @@ static XWFloatingShakeManager *p_floatingShakeManager;
     CGFloat transitionX;
 }
 
+- (void)dealloc {
+    NSLog(@"%@ +++ %s",NSStringFromClass([self class]),__func__);
+}
+
 - (void)transitionToViewController:(UIViewController *)toViewController {
     presentedViewController = toViewController;
     UIPanGestureRecognizer *panGesture = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(panAction:)];
+    toViewController.view.userInteractionEnabled = YES;
     [toViewController.view addGestureRecognizer:panGesture];
 }
 
@@ -276,106 +258,6 @@ static XWFloatingShakeManager *p_floatingShakeManager;
 }
 @end
 
-#pragma mark - ****************************************** 浮窗右下红色容器视图 ****************************************************
-/// 视图右下红色隐藏视图,浮窗拖入消失
-@interface XWFloatingWindowContentView : UIView
-/**
- 扩散效果
- */
-- (void)spreadAnimation;
-/**
- 取消扩散效果
- */
-- (void)cancelSpreadAnimation;
-@end
-
-@implementation XWFloatingWindowContentView {
-    CAShapeLayer *p_shapeLayer;
-    CALayer *p_imageLayer;
-    CATextLayer *p_textLayer;
-    
-    UIBezierPath *spreadPath;
-    UIBezierPath *originPath;
-    CABasicAnimation *imageLayerScaleAnim;
-}
-#pragma mark - public
-- (void)spreadAnimation {
-    if (!spreadPath) {
-        spreadPath = [UIBezierPath bezierPathWithArcCenter:CGPointMake(self.frame.size.width, self.frame.size.height) radius:self.frame.size.width + 10 startAngle:-M_PI_2 endAngle:-M_PI clockwise:NO];
-        [spreadPath addLineToPoint:CGPointMake(self.frame.size.width, self.frame.size.height)];
-        [spreadPath closePath];
-    }
-    p_shapeLayer.path = spreadPath.CGPath;
-    
-    if (!imageLayerScaleAnim) {
-        imageLayerScaleAnim = [CABasicAnimation animationWithKeyPath:@"transform.scale"];
-        imageLayerScaleAnim.toValue = [NSNumber numberWithFloat:1.2];
-        imageLayerScaleAnim.duration = 0.1;
-        imageLayerScaleAnim.repeatCount = 1.0;
-        imageLayerScaleAnim.removedOnCompletion = NO;
-        imageLayerScaleAnim.fillMode = kCAFillModeForwards;
-    }
-    [p_imageLayer addAnimation:imageLayerScaleAnim forKey:@"imageLayerScale"];
-}
-
-- (void)cancelSpreadAnimation {
-    if (!originPath) {
-        originPath = [UIBezierPath bezierPathWithArcCenter:CGPointMake(self.frame.size.width, self.frame.size.height) radius:self.frame.size.width startAngle:-M_PI_2 endAngle:-M_PI clockwise:NO];
-        [originPath addLineToPoint:CGPointMake(self.frame.size.width, self.frame.size.height)];
-        [originPath closePath];
-    }
-    p_shapeLayer.path = originPath.CGPath;
-    [p_imageLayer removeAnimationForKey:@"imageLayerScale"];
-}
-
-#pragma mark - system
-- (instancetype)initWithFrame:(CGRect)frame {
-    if (self = [super initWithFrame:frame]) {
-        [self setupUI];
-    }
-    return self;
-}
-#pragma mark - private
-- (void)setupUI {
-    [self.layer addSublayer:self.shapeLayer];
-    [self.layer addSublayer:self.imageLayer];
-    [self.layer addSublayer:self.textLayer];
-    CGFloat imageW = 50.0;
-    p_imageLayer.frame = CGRectMake(0.5 * (self.frame.size.width - imageW), 0.5 * (self.frame.size.height - imageW), imageW, imageW);
-    p_textLayer.frame = CGRectMake(p_imageLayer.frame.origin.x, CGRectGetMaxY(p_imageLayer.frame) + 3.0, p_imageLayer.frame.size.width, 20);
-}
-
-#pragma mark - getter
-- (CAShapeLayer *)shapeLayer {
-    if(!p_shapeLayer){
-        p_shapeLayer = [CAShapeLayer layer];
-        UIBezierPath *path = [UIBezierPath bezierPathWithArcCenter:CGPointMake(self.frame.size.width, self.frame.size.height) radius:self.frame.size.width startAngle:-M_PI_2 endAngle:-M_PI clockwise:NO];
-        [path addLineToPoint:CGPointMake(self.frame.size.width, self.frame.size.height)];
-        [path closePath];
-        p_shapeLayer.path = path.CGPath;
-        p_shapeLayer.fillColor = [UIColor colorWithRed:206/255.0 green:85/255.0 blue:85/255.0 alpha:1].CGColor;;
-    }
-    return p_shapeLayer;
-}
-- (CALayer *)imageLayer {
-    if(!p_imageLayer){
-        p_imageLayer = [[CALayer alloc] init];
-        p_imageLayer.contents = (__bridge id)[UIImage imageNamed:@"WebView_Minimize_Corner_Icon_remove"].CGImage;
-    }
-    return p_imageLayer;
-}
-- (CATextLayer *)textLayer {
-    if(!p_textLayer){
-        p_textLayer = [[CATextLayer alloc] init];
-        p_textLayer.string = @"取消浮窗";
-        p_textLayer.fontSize = 12.0;
-        p_textLayer.contentsScale = [UIScreen mainScreen].scale;
-        p_textLayer.foregroundColor = [UIColor colorWithRed:234.f/255.0 green:160.f/255.0 blue:160.f/255.0 alpha:1].CGColor;
-    }
-    return p_textLayer;
-}
-@end
-
 #pragma mark - ****************************************** 浮窗视图 ****************************************************
 @interface XWFloatingWindowView() <UINavigationControllerDelegate>
 @end
@@ -384,8 +266,7 @@ static XWFloatingShakeManager *p_floatingShakeManager;
     CGSize screenSize;
     CGPoint lastPointInSuperView;
     CGPoint lastPointInSelf;
-    XWInteractiveTransition *interactiveTransition;
-    XWFloatingAnimator *p_FloatingAnimator;
+    XWInteractiveTransition *weakInteractiveTransition;
     BOOL p_isShowing;
     UIViewController *p_containerVC;
     BOOL isShake;
@@ -434,6 +315,7 @@ static XWFloatingWindowContentView *xw_floatingWindowContentView;
 + (void)remove {
     UINavigationController *navi = xw_floatingWindowView->p_containerVC.navigationController;
     navi.delegate = nil;
+    xw_floatingWindowView->weakInteractiveTransition = nil;
     xw_floatingWindowView->p_containerVC = nil;
     [xw_floatingWindowView removeFloatingWindow];
 }
@@ -548,7 +430,8 @@ static XWFloatingWindowContentView *xw_floatingWindowContentView;
 }
 
 - (void)toContainerVC {
-    interactiveTransition = [XWInteractiveTransition new];
+    XWInteractiveTransition * interactiveTransition = [[XWInteractiveTransition alloc] init];
+    weakInteractiveTransition = interactiveTransition;
     interactiveTransition.curPoint = self.frame.origin;
     UIViewController *rootVC = [UIApplication sharedApplication].keyWindow.rootViewController;
     if (![rootVC isKindOfClass:[UINavigationController class]]) {
@@ -567,12 +450,6 @@ static XWFloatingWindowContentView *xw_floatingWindowContentView;
 }
 
 #pragma mark - getter
-- (XWFloatingAnimator *)p_FloatingAnimator {
-    if(!p_FloatingAnimator){
-        p_FloatingAnimator = [[XWFloatingAnimator alloc] init];
-    }
-    return p_FloatingAnimator;
-}
 
 #pragma mark - UINavigationControllerDelegate
 - (nullable id <UIViewControllerAnimatedTransitioning>)navigationController:(UINavigationController *)navigationController
@@ -580,16 +457,159 @@ static XWFloatingWindowContentView *xw_floatingWindowContentView;
                                                          fromViewController:(UIViewController *)fromVC
                                                            toViewController:(UIViewController *)toVC {
     
+    if ((operation == UINavigationControllerOperationPush && toVC != self->p_containerVC) || (operation == UINavigationControllerOperationPop && fromVC != self->p_containerVC) ) {
+        return NULL;
+    }
+    
     if (operation == UINavigationControllerOperationPush) {
         self.alpha = 0.0;
     }
-    self.p_FloatingAnimator.currentFloatingCenter = self.frame.origin;
-    self.p_FloatingAnimator.operation = operation;
-    self.p_FloatingAnimator.isInteractive = interactiveTransition.isInteractive;
-    return self.p_FloatingAnimator;
+    XWFloatingAnimator *floatingAnimator = [[XWFloatingAnimator alloc] init];
+    floatingAnimator.currentFloatingCenter = self.frame.origin;
+    floatingAnimator.operation = operation;
+    floatingAnimator.isInteractive = weakInteractiveTransition.isInteractive;
+    return floatingAnimator;
 }
 - (nullable id <UIViewControllerInteractiveTransitioning>)navigationController:(UINavigationController *)navigationController
                                    interactionControllerForAnimationController:(id <UIViewControllerAnimatedTransitioning>) animationController {
-    return interactiveTransition.isInteractive?interactiveTransition:nil;
+    return weakInteractiveTransition.isInteractive ? weakInteractiveTransition : nil;
+}
+@end
+
+#pragma mark - ****************************************** 浮窗右下红色容器视图 ****************************************************
+
+@implementation XWFloatingWindowContentView {
+    CAShapeLayer *p_shapeLayer;
+    CALayer *p_imageLayer;
+    CATextLayer *p_textLayer;
+    
+    UIBezierPath *spreadPath;
+    UIBezierPath *originPath;
+    CABasicAnimation *imageLayerScaleAnim;
+}
+#pragma mark - public
+- (void)spreadAnimation {
+    if (!spreadPath) {
+        spreadPath = [UIBezierPath bezierPathWithArcCenter:CGPointMake(self.frame.size.width, self.frame.size.height) radius:self.frame.size.width + 10 startAngle:-M_PI_2 endAngle:-M_PI clockwise:NO];
+        [spreadPath addLineToPoint:CGPointMake(self.frame.size.width, self.frame.size.height)];
+        [spreadPath closePath];
+    }
+    p_shapeLayer.path = spreadPath.CGPath;
+    
+    if (!imageLayerScaleAnim) {
+        imageLayerScaleAnim = [CABasicAnimation animationWithKeyPath:@"transform.scale"];
+        imageLayerScaleAnim.toValue = [NSNumber numberWithFloat:1.2];
+        imageLayerScaleAnim.duration = 0.1;
+        imageLayerScaleAnim.repeatCount = 1.0;
+        imageLayerScaleAnim.removedOnCompletion = NO;
+        imageLayerScaleAnim.fillMode = kCAFillModeForwards;
+    }
+    [p_imageLayer addAnimation:imageLayerScaleAnim forKey:@"imageLayerScale"];
+}
+
+- (void)cancelSpreadAnimation {
+    if (!originPath) {
+        originPath = [UIBezierPath bezierPathWithArcCenter:CGPointMake(self.frame.size.width, self.frame.size.height) radius:self.frame.size.width startAngle:-M_PI_2 endAngle:-M_PI clockwise:NO];
+        [originPath addLineToPoint:CGPointMake(self.frame.size.width, self.frame.size.height)];
+        [originPath closePath];
+    }
+    p_shapeLayer.path = originPath.CGPath;
+    [p_imageLayer removeAnimationForKey:@"imageLayerScale"];
+}
+
+#pragma mark - system
+- (instancetype)initWithFrame:(CGRect)frame {
+    if (self = [super initWithFrame:frame]) {
+        [self setupUI];
+    }
+    return self;
+}
+#pragma mark - private
+- (void)setupUI {
+    [self.layer addSublayer:self.shapeLayer];
+    [self.layer addSublayer:self.imageLayer];
+    [self.layer addSublayer:self.textLayer];
+    CGFloat imageW = 50.0;
+    p_imageLayer.frame = CGRectMake(0.5 * (self.frame.size.width - imageW), 0.5 * (self.frame.size.height - imageW), imageW, imageW);
+    p_textLayer.frame = CGRectMake(p_imageLayer.frame.origin.x, CGRectGetMaxY(p_imageLayer.frame) + 3.0, p_imageLayer.frame.size.width, 20);
+}
+
+#pragma mark - getter
+- (CAShapeLayer *)shapeLayer {
+    if(!p_shapeLayer){
+        p_shapeLayer = [CAShapeLayer layer];
+        UIBezierPath *path = [UIBezierPath bezierPathWithArcCenter:CGPointMake(self.frame.size.width, self.frame.size.height) radius:self.frame.size.width startAngle:-M_PI_2 endAngle:-M_PI clockwise:NO];
+        [path addLineToPoint:CGPointMake(self.frame.size.width, self.frame.size.height)];
+        [path closePath];
+        p_shapeLayer.path = path.CGPath;
+        p_shapeLayer.fillColor = [UIColor colorWithRed:206/255.0 green:85/255.0 blue:85/255.0 alpha:1].CGColor;;
+    }
+    return p_shapeLayer;
+}
+- (CALayer *)imageLayer {
+    if(!p_imageLayer){
+        p_imageLayer = [[CALayer alloc] init];
+        p_imageLayer.contents = (__bridge id)[UIImage imageNamed:@"WebView_Minimize_Corner_Icon_remove"].CGImage;
+    }
+    return p_imageLayer;
+}
+- (CATextLayer *)textLayer {
+    if(!p_textLayer){
+        p_textLayer = [[CATextLayer alloc] init];
+        p_textLayer.string = @"取消浮窗";
+        p_textLayer.fontSize = 12.0;
+        p_textLayer.contentsScale = [UIScreen mainScreen].scale;
+        p_textLayer.foregroundColor = [UIColor colorWithRed:234.f/255.0 green:160.f/255.0 blue:160.f/255.0 alpha:1].CGColor;
+    }
+    return p_textLayer;
+}
+@end
+
+
+#pragma mark - **************************************** 震动器 ******************************************************
+@implementation XWFloatingShakeManager {
+    API_AVAILABLE(ios(10.0))
+    UIImpactFeedbackGenerator *_generator;
+}
+/// 单例对象
+static XWFloatingShakeManager *p_floatingShakeManager;
+#pragma mark - public
+- (void)shake {
+    if (@available(iOS 10.0, *)) {
+        [_generator prepare];
+        [_generator impactOccurred];
+    }
+}
+#pragma mark - system
+- (instancetype)init {
+    if (self = [super init]) {
+        if (@available(iOS 10.0, *)) {
+            /// ios10 以上才可震动
+            _generator = [[UIImpactFeedbackGenerator alloc] initWithStyle: UIImpactFeedbackStyleLight];
+        }
+    }
+    return self;
+}
+#pragma mark - 单例对象
++ (instancetype)share {
+    if (!p_floatingShakeManager) {
+        p_floatingShakeManager = [[self alloc] init];
+    }
+    return p_floatingShakeManager;
+}
++ (instancetype)allocWithZone:(struct _NSZone *)zone {
+    if (!p_floatingShakeManager) {
+        static dispatch_once_t onceToken;
+        dispatch_once(&onceToken, ^{
+            p_floatingShakeManager = [super allocWithZone:zone];
+        });
+    }
+    return p_floatingShakeManager;
+}
+- (id)copyWithZone:(NSZone *)zone{
+    return p_floatingShakeManager;
+}
+- (id)mutableCopyWithZone:(NSZone *)zone{
+    return p_floatingShakeManager;
 }
 @end
